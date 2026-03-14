@@ -1,24 +1,41 @@
 """
 SelfDiary — Application Configuration.
 
-Reads environment variables via Pydantic Settings.
-All config values have safe defaults for local development.
+Environment-based configuration using Pydantic Settings.
+All values have safe defaults for local development.
+
+
+Usage:
+    from app.core.config import settings
+    print(settings.database_url)
 """
 
-from pydantic_settings import BaseSettings
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
     """Application settings loaded from environment variables."""
 
-    # ── General ──
+    model_config = SettingsConfigDict(
+        env_file=".env",
+        env_file_encoding="utf-8",
+        case_sensitive=False,
+    )
+
+    # ── Application ──
+    app_name: str = "SelfDiary API"
+    app_version: str = "0.1.0"
     environment: str = "development"
     debug: bool = False
+    log_level: str = "INFO"
 
     # ── Database ──
     database_url: str = "postgresql+asyncpg://selfdiary:selfdiary_dev@localhost:5432/selfdiary"
+    db_echo: bool = False
+    db_pool_size: int = 5
+    db_max_overflow: int = 10
 
-    # ── JWT ──
+    # ── JWT (placeholder — implemented in Phase 3) ──
     jwt_secret_key: str = "dev-secret-change-in-production"
     jwt_algorithm: str = "HS256"
     jwt_access_token_expire_minutes: int = 15
@@ -37,7 +54,13 @@ class Settings(BaseSettings):
     def cors_origins_list(self) -> list[str]:
         return [origin.strip() for origin in self.cors_origins.split(",")]
 
-    model_config = {"env_file": ".env", "case_sensitive": False}
+    @property
+    def is_development(self) -> bool:
+        return self.environment == "development"
+
+    @property
+    def is_production(self) -> bool:
+        return self.environment == "production"
 
 
 settings = Settings()
