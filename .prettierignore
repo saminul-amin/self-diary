@@ -1,0 +1,29 @@
+# ──────────────────────────────────────────────
+# SelfDiary — Prettier Ignore
+# ──────────────────────────────────────────────
+# Prettier should NOT format these paths.
+
+# Dependencies
+node_modules/
+
+# Build outputs
+.next/
+out/
+dist/
+build/
+.expo/
+
+# Python (formatted by Black/Ruff, not Prettier)
+backend/
+
+# Infrastructure
+infra/
+
+# Lock files (auto-generated)
+package-lock.json
+pnpm-lock.yaml
+yarn.lock
+
+# Coverage
+coverage/
+htmlcov/

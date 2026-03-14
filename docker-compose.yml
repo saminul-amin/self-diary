@@ -1,0 +1,83 @@
+# ──────────────────────────────────────────────
+# SelfDiary — Docker Compose (Local Development)
+# ──────────────────────────────────────────────
+# Usage:
+#   docker compose up -d          Start all services
+#   docker compose logs -f api    Follow backend logs
+#   docker compose down -v        Stop and remove volumes
+# ──────────────────────────────────────────────
+
+services:
+  # ─── PostgreSQL Database ───
+  postgres:
+    image: postgres:16-alpine
+    container_name: selfdiary-postgres
+    restart: unless-stopped
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-selfdiary}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-selfdiary_dev}
+      POSTGRES_DB: ${POSTGRES_DB:-selfdiary}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-selfdiary}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # ─── Minio (S3-compatible Object Storage) ───
+  minio:
+    image: minio/minio:latest
+    container_name: selfdiary-minio
+    restart: unless-stopped
+    ports:
+      - "${MINIO_PORT:-9000}:9000"
+      - "${MINIO_CONSOLE_PORT:-9001}:9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minioadmin}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-minioadmin}
+    volumes:
+      - minio_data:/data
+    command: server /data --console-address ":9001"
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  # ─── FastAPI Backend ───
+  api:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: selfdiary-api
+    restart: unless-stopped
+    ports:
+      - "${API_PORT:-8000}:8000"
+    environment:
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-selfdiary}:${POSTGRES_PASSWORD:-selfdiary_dev}@postgres:5432/${POSTGRES_DB:-selfdiary}
+      JWT_SECRET_KEY: ${JWT_SECRET_KEY:-dev-secret-change-in-production}
+      JWT_ACCESS_TOKEN_EXPIRE_MINUTES: ${JWT_ACCESS_TOKEN_EXPIRE_MINUTES:-15}
+      JWT_REFRESH_TOKEN_EXPIRE_DAYS: ${JWT_REFRESH_TOKEN_EXPIRE_DAYS:-30}
+      S3_ENDPOINT_URL: http://minio:9000
+      S3_ACCESS_KEY: ${MINIO_ROOT_USER:-minioadmin}
+      S3_SECRET_KEY: ${MINIO_ROOT_PASSWORD:-minioadmin}
+      S3_BUCKET_NAME: ${S3_BUCKET_NAME:-selfdiary-attachments}
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:3000}
+      ENVIRONMENT: development
+    volumes:
+      - ./backend:/app
+    depends_on:
+      postgres:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+
+volumes:
+  postgres_data:
+    driver: local
+  minio_data:
+    driver: local

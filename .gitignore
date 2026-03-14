@@ -1,0 +1,72 @@
+# ──────────────────────────────────────────────
+# SelfDiary — .gitignore
+# ──────────────────────────────────────────────
+
+# ─── Environment & Secrets ───
+.env
+.env.local
+.env.*.local
+!.env.example
+
+# ─── Python / Backend ───
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+*.egg-info/
+*.egg
+dist/
+build/
+.venv/
+venv/
+.mypy_cache/
+.ruff_cache/
+.pytest_cache/
+htmlcov/
+.coverage
+.coverage.*
+*.cover
+
+# ─── Node.js / Web / Mobile ───
+node_modules/
+.next/
+out/
+.expo/
+expo-env.d.ts
+*.tsbuildinfo
+
+# ─── IDE & Editors ───
+.vscode/
+!.vscode/extensions.json
+!.vscode/settings.json
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+
+# ─── Docker ───
+docker-compose.override.yml
+
+# ─── OS ───
+*.log
+*.pid
+*.seed
+
+# ─── Build artifacts ───
+*.tar.gz
+*.zip
+
+# ─── Minio local data ───
+.minio-data/
+
+# ─── Pre-commit ───
+.pre-commit-cache/
+
+# ─── Prettier ───
+.prettiercache
+
+# ─── Coverage ───
+coverage/
+*.lcov

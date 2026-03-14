@@ -1,0 +1,129 @@
+# ──────────────────────────────────────────────
+# SelfDiary — Pre-commit Hooks
+# ──────────────────────────────────────────────
+# Install:
+#   pip install pre-commit
+#   pre-commit install
+#
+# Run all hooks on all files:
+#   pre-commit run --all-files
+#
+# Update hook versions:
+#   pre-commit autoupdate
+# ──────────────────────────────────────────────
+
+repos:
+  # ═══════════════════════════════════════════
+  # 1. General File Hygiene
+  # ═══════════════════════════════════════════
+  # These hooks catch common problems before they enter version control.
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.6.0
+    hooks:
+      # Remove trailing whitespace from all text files.
+      # Why: Trailing whitespace causes noisy diffs and inconsistency.
+      - id: trailing-whitespace
+        args: [--markdown-linebreak-ext=md]
+
+      # Ensure every file ends with exactly one newline.
+      # Why: POSIX standard; many tools expect trailing newline.
+      - id: end-of-file-fixer
+
+      # Validate YAML syntax (docker-compose.yml, CI configs, etc).
+      # Why: Catches indentation and syntax errors early.
+      - id: check-yaml
+        args: [--allow-multiple-documents]
+
+      # Validate JSON syntax. Exclude tsconfig files (they allow comments).
+      # Why: Catches malformed JSON before it breaks tooling.
+      - id: check-json
+        exclude: tsconfig.*\.json$
+
+      # Prevent accidentally committing files larger than 1 MB.
+      # Why: Keeps the repository lightweight and fast to clone.
+      - id: check-added-large-files
+        args: ['--maxkb=1024']
+
+      # Detect leftover merge conflict markers (<<<<<<, ======, >>>>>>).
+      # Why: Prevents committing broken files after a merge.
+      - id: check-merge-conflict
+
+      # Scan for accidentally committed private keys.
+      # Why: Security — private keys in git are a critical vulnerability.
+      - id: detect-private-key
+
+  # ═══════════════════════════════════════════
+  # 2. Python — Black (Formatter)
+  # ═══════════════════════════════════════════
+  # Auto-formats Python code to a consistent style.
+  # Why: Eliminates style debates; every developer's code looks the same.
+  - repo: https://github.com/psf/black
+    rev: 24.10.0
+    hooks:
+      - id: black
+        args: [--line-length=100]
+        files: ^backend/
+
+  # ═══════════════════════════════════════════
+  # 3. Python — Ruff (Linter)
+  # ═══════════════════════════════════════════
+  # Fast Python linter that replaces flake8, isort, and many others.
+  # Why: Catches bugs, enforces best practices, auto-fixes import ordering.
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.8.0
+    hooks:
+      - id: ruff
+        args: [--fix]
+        files: ^backend/
+
+  # ═══════════════════════════════════════════
+  # 4. Python — mypy (Type Checker)
+  # ═══════════════════════════════════════════
+  # Static type checking for Python.
+  # Why: Catches type errors before runtime; improves code reliability.
+  - repo: https://github.com/pre-commit/mirrors-mypy
+    rev: v1.13.0
+    hooks:
+      - id: mypy
+        additional_dependencies:
+          - pydantic
+          - "sqlalchemy[mypy]"
+        args: [--ignore-missing-imports]
+        files: ^backend/
+
+  # ═══════════════════════════════════════════
+  # 5. JavaScript/TypeScript — Prettier (Formatter)
+  # ═══════════════════════════════════════════
+  # Auto-formats JS, TS, JSON, CSS, and Markdown to a consistent style.
+  # Why: Same benefit as Black — eliminates formatting debates.
+  - repo: https://github.com/pre-commit/mirrors-prettier
+    rev: v4.0.0-alpha.8
+    hooks:
+      - id: prettier
+        types_or: [javascript, jsx, ts, tsx, css, json, markdown, yaml]
+        # Only format files in web/ and mobile/ (plus root configs)
+        files: ^(web/|mobile/|\.prettierrc|\.eslintrc)
+        additional_dependencies:
+          - prettier@3.4.2
+
+  # ═══════════════════════════════════════════
+  # 6. JavaScript/TypeScript — ESLint (Linter)
+  # ═══════════════════════════════════════════
+  # Catches bugs and enforces best practices in JS/TS code.
+  # Runs separately for web and mobile to respect per-project configs.
+  # Why: Finds unused variables, missing deps, type issues, and anti-patterns.
+  - repo: local
+    hooks:
+      - id: eslint-web
+        name: eslint (web)
+        entry: bash -c 'cd web && for f in "$@"; do npx eslint --fix "${f#web/}"; done' _
+        language: system
+        files: ^web/.*\.(ts|tsx|js|jsx)$
+        types: [file]
+
+      - id: eslint-mobile
+        name: eslint (mobile)
+        entry: bash -c 'cd mobile && for f in "$@"; do npx eslint --fix "${f#mobile/}"; done' _
+        language: system
+        files: ^mobile/.*\.(ts|tsx|js|jsx)$
+        types: [file]

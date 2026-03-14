@@ -1,0 +1,22 @@
+{
+  "expo": {
+    "name": "SelfDiary",
+    "slug": "selfdiary",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "scheme": "selfdiary",
+    "userInterfaceStyle": "automatic",
+    "newArchEnabled": true,
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.selfdiary.app"
+    },
+    "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#ffffff"
+      },
+      "package": "com.selfdiary.app"
+    },
+    "plugins": ["expo-router", "expo-secure-store"]
+  }
+}

@@ -1,0 +1,19 @@
+# ──────────────────────────────────────────────
+# SelfDiary — Git Line Ending Normalization
+# ──────────────────────────────────────────────
+# Ensure consistent LF line endings in the repository,
+# regardless of OS. Git will convert CRLF to LF on commit.
+
+* text=auto eol=lf
+
+# Explicitly mark binary files
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.pdf binary
+*.woff binary
+*.woff2 binary
+*.ttf binary
+*.eot binary
