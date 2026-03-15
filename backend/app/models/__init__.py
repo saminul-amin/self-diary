@@ -2,13 +2,13 @@
 SQLAlchemy ORM models — Base class and model imports.
 
 All models inherit from Base so Alembic can auto-detect schema changes.
+Import all models here so they are registered with Base.metadata.
 """
 
 import uuid
 from datetime import datetime
 
-from sqlalchemy import DateTime, func
-from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy import DateTime, Uuid, func
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
 
@@ -38,7 +38,12 @@ class UUIDPrimaryKeyMixin:
     """Adds a UUID primary key column."""
 
     id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True),
+        Uuid,
         primary_key=True,
         default=uuid.uuid4,
     )
+
+
+# Import all models so Base.metadata is fully populated for Alembic
+from app.models.session import Session  # noqa: E402, F401
+from app.models.user import User  # noqa: E402, F401
