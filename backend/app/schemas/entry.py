@@ -8,6 +8,7 @@ from datetime import datetime
 from pydantic import BaseModel, Field
 
 from app.models.entry import Mood
+from app.schemas.tag import TagResponse
 
 # ── Request schemas ──
 
@@ -18,6 +19,7 @@ class EntryCreateRequest(BaseModel):
     mood: Mood | None = None
     is_favorite: bool = False
     client_id: uuid.UUID | None = None
+    tag_ids: list[uuid.UUID] = Field(default_factory=list)
 
 
 class EntryUpdateRequest(BaseModel):
@@ -26,6 +28,7 @@ class EntryUpdateRequest(BaseModel):
     mood: Mood | None = None
     is_favorite: bool | None = None
     expected_version: int = Field(ge=1)
+    tag_ids: list[uuid.UUID] | None = None
 
 
 # ── Query schemas ──
@@ -55,6 +58,7 @@ class EntryResponse(BaseModel):
     client_id: uuid.UUID | None
     created_at: datetime
     updated_at: datetime
+    tags: list[TagResponse] = Field(default_factory=list)
 
     model_config = {"from_attributes": True}
 

@@ -18,6 +18,7 @@ from app.schemas.entry import (
     EntryResponse,
     EntryUpdateRequest,
 )
+from app.services.tag_service import get_tags_by_ids
 
 logger = logging.getLogger(__name__)
 
@@ -49,8 +50,13 @@ async def create_entry(
         is_favorite=data.is_favorite,
         client_id=data.client_id,
     )
+    # Assign tags if provided
+    if data.tag_ids:
+        tags = await get_tags_by_ids(db, user_id, data.tag_ids)
+        entry.tags = tags
     db.add(entry)
     await db.flush()
+    await db.refresh(entry)
     logger.info("Entry created: %s by user %s", entry.id, user_id)
     return EntryResponse.model_validate(entry)
 
@@ -133,6 +139,11 @@ async def update_entry(
     if data.is_favorite is not None:
         entry.is_favorite = data.is_favorite
 
+    # Update tags if provided
+    if data.tag_ids is not None:
+        tags = await get_tags_by_ids(db, user_id, data.tag_ids)
+        entry.tags = tags
+
     entry.version += 1
     await db.flush()
     await db.refresh(entry)
@@ -149,6 +160,7 @@ async def delete_entry(
     entry = await _get_user_entry(db, user_id, entry_id)
     entry.deleted_at = datetime.now(UTC)
     await db.flush()
+    await db.refresh(entry)
     logger.info("Entry soft-deleted: %s", entry.id)
 
 

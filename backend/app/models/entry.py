@@ -24,6 +24,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.models import Base
 
 if TYPE_CHECKING:
+    from app.models.tag import Tag
     from app.models.user import User
 
 
@@ -62,3 +63,9 @@ class Entry(Base):
 
     # Relationships
     user: Mapped["User"] = relationship("User", lazy="selectin")
+    tags: Mapped[list["Tag"]] = relationship(
+        "Tag",
+        secondary="entry_tags",
+        back_populates="entries",
+        lazy="selectin",
+    )

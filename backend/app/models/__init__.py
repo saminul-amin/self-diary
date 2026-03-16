@@ -47,4 +47,5 @@ class UUIDPrimaryKeyMixin:
 # Import all models so Base.metadata is fully populated for Alembic
 from app.models.entry import Entry  # noqa: E402, F401
 from app.models.session import Session  # noqa: E402, F401
+from app.models.tag import Tag, entry_tags  # noqa: E402, F401
 from app.models.user import User  # noqa: E402, F401
