@@ -1,2 +1,9 @@
-/* Placeholder — will contain global styles and Tailwind directives */
 @import 'tailwindcss';
+
+body {
+  font-family:
+    'Inter',
+    system-ui,
+    -apple-system,
+    sans-serif;
+}
