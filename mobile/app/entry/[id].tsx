@@ -64,6 +64,7 @@ export default function EntryDetailScreen() {
         mood: mood ?? null,
         is_favorite: isFavorite,
         tag_ids: selectedTagIds,
+        expected_version: entry?.version,
       });
       router.back();
     } catch {

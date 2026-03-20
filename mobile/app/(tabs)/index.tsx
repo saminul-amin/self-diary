@@ -4,6 +4,7 @@ import { useRouter } from 'expo-router';
 import { useEntries } from '@/hooks/use-entries';
 import { formatDate, moodEmoji, moodColor } from '@/lib/utils';
 import TagBadge from '@/components/ui/TagBadge';
+import SyncStatusBar from '@/components/SyncStatusBar';
 import type { Entry } from '@/types/api';
 
 export default function EntriesScreen() {
@@ -62,6 +63,7 @@ export default function EntriesScreen() {
 
   return (
     <View style={styles.container}>
+      <SyncStatusBar />
       <FlatList
         data={entries}
         keyExtractor={(item) => item.id}

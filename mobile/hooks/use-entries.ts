@@ -1,5 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import apiClient from '@/lib/api-client';
+import { enqueueOfflineEntry } from '@/lib/offline-storage';
+import { isOnline } from '@/lib/network-status';
 import type { Entry, Mood } from '@/types/api';
 
 interface EntryListParams {
@@ -50,11 +52,39 @@ interface CreateEntryInput {
   tag_ids?: string[];
 }
 
+/**
+ * Create entry — falls back to offline queue when there is no network.
+ * Generates a client_id UUID for idempotent server-side dedup.
+ */
 export function useCreateEntry() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (input: CreateEntryInput): Promise<Entry> => {
-      const res = await apiClient.post('/entries', input);
+    mutationFn: async (input: CreateEntryInput): Promise<Entry | null> => {
+      const clientId = crypto.randomUUID();
+
+      const online = await isOnline();
+      if (!online) {
+        await enqueueOfflineEntry({
+          id: clientId,
+          action: 'create',
+          payload: {
+            title: input.title,
+            body: input.body,
+            mood: input.mood,
+            is_favorite: input.is_favorite,
+            tag_ids: input.tag_ids,
+            client_id: clientId,
+          },
+          queued_at: new Date().toISOString(),
+          attempts: 0,
+        });
+        return null; // queued for later
+      }
+
+      const res = await apiClient.post('/entries', {
+        ...input,
+        client_id: clientId,
+      });
       return res.data.data;
     },
     onSuccess: () => {
@@ -65,13 +95,44 @@ export function useCreateEntry() {
 
 interface UpdateEntryInput extends CreateEntryInput {
   id: string;
+  expected_version?: number;
 }
 
+/**
+ * Update entry — falls back to offline queue when there is no network.
+ * Sends expected_version for optimistic concurrency.
+ */
 export function useUpdateEntry() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async ({ id, ...input }: UpdateEntryInput): Promise<Entry> => {
-      const res = await apiClient.put(`/entries/${id}`, input);
+    mutationFn: async ({
+      id,
+      expected_version,
+      ...input
+    }: UpdateEntryInput): Promise<Entry | null> => {
+      const online = await isOnline();
+      if (!online) {
+        await enqueueOfflineEntry({
+          id,
+          action: 'update',
+          payload: {
+            title: input.title,
+            body: input.body,
+            mood: input.mood,
+            is_favorite: input.is_favorite,
+            tag_ids: input.tag_ids,
+            expected_version,
+          },
+          queued_at: new Date().toISOString(),
+          attempts: 0,
+        });
+        return null; // queued for later
+      }
+
+      const res = await apiClient.put(`/entries/${id}`, {
+        ...input,
+        expected_version,
+      });
       return res.data.data;
     },
     onSuccess: (_data, variables) => {
