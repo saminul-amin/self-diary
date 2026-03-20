@@ -1,0 +1,30 @@
+appId: com.selfdiary.app
+---
+# Flow 01 – Register a new account
+- launchApp
+
+# Wait for the login screen to load
+- assertVisible: 'SelfDiary'
+- assertVisible: 'Sign In'
+
+# Navigate to registration
+- tapOn: 'Sign Up'
+
+# Wait for registration screen
+- assertVisible: 'Create your account'
+
+# Fill out the registration form
+- tapOn: 'Your name (optional)'
+- inputText: 'E2E Test User'
+
+- tapOn: 'you@example.com'
+- inputText: 'e2e-test@selfdiary.com'
+
+- tapOn: 'Min 8 characters'
+- inputText: 'TestPass123!'
+
+# Submit
+- tapOn: 'Create Account'
+
+# Should redirect to entries list
+- assertVisible: 'No entries yet.'

@@ -1,0 +1,26 @@
+appId: com.selfdiary.app
+---
+# Flow 02 – Login with existing account
+- launchApp:
+    clearState: true
+
+# Wait for the login screen
+- assertVisible: 'SelfDiary'
+- assertVisible: 'Sign In'
+
+# Fill in credentials
+- tapOn: 'you@example.com'
+- inputText: 'e2e-test@selfdiary.com'
+
+- tapOn: '••••••••'
+- inputText: 'TestPass123!'
+
+# Submit
+- tapOn:
+    text: 'Sign In'
+    index: 0
+
+# Should redirect to entries list
+- assertVisible:
+    text: 'No entries yet.|Entries'
+    isRegexp: true

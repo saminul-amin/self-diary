@@ -1,0 +1,24 @@
+appId: com.selfdiary.app
+---
+# Flow 03 – Create a diary entry with mood
+- launchApp
+
+# Navigate to new entry via FAB
+- tapOn: '+'
+
+# Fill title
+- tapOn: 'Give your entry a title'
+- inputText: 'My First E2E Entry'
+
+# Fill body
+- tapOn: "What's on your mind?"
+- inputText: 'This entry was created by a Maestro E2E test. Recording thoughts automatically!'
+
+# Select a mood
+- tapOn: '😊 good'
+
+# Submit
+- tapOn: 'Create Entry'
+
+# Should navigate back to entries list and show the entry
+- assertVisible: 'My First E2E Entry'

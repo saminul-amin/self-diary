@@ -1,0 +1,26 @@
+appId: com.selfdiary.app
+---
+# Flow 05 – Edit an existing entry
+- launchApp
+
+# Tap the entry to open detail view
+- tapOn: 'My First E2E Entry'
+
+# Clear and update the title
+- tapOn: 'My First E2E Entry'
+- clearInput
+- inputText: 'Updated E2E Entry'
+
+# Clear and update the body
+- tapOn: 'This entry was created by a Maestro E2E test'
+- clearInput
+- inputText: 'This entry has been updated by Maestro.'
+
+# Change mood
+- tapOn: '😄 great'
+
+# Save
+- tapOn: 'Save'
+
+# Verify the updated entry in the list
+- assertVisible: 'Updated E2E Entry'

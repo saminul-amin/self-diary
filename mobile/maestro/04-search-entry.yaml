@@ -1,0 +1,14 @@
+appId: com.selfdiary.app
+---
+# Flow 04 – Search for an entry
+- launchApp
+
+# Navigate to search tab
+- tapOn: 'Search'
+
+# Type a search query
+- tapOn: 'Search your entries…'
+- inputText: 'First E2E'
+
+# Should show matching entry
+- assertVisible: 'My First E2E Entry'

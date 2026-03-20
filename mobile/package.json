@@ -8,7 +8,8 @@
     "android": "expo start --android",
     "ios": "expo start --ios",
     "lint": "eslint .",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test": "jest"
   },
   "dependencies": {
     "@react-native-async-storage/async-storage": "~2.1.0",
@@ -33,6 +34,7 @@
     "eslint": "^9.0.0",
     "jest": "^30.3.0",
     "prettier": "^3.4.0",
+    "ts-jest": "^29.4.6",
     "typescript": "^5.7.0"
   }
 }

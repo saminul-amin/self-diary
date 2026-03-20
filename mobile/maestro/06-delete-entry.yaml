@@ -1,0 +1,18 @@
+appId: com.selfdiary.app
+---
+# Flow 06 – Delete an entry
+- launchApp
+
+# Tap the entry to open detail view
+- tapOn: 'Updated E2E Entry'
+
+# Tap delete button
+- tapOn: 'Delete'
+
+# Confirm deletion in the native alert dialog
+- tapOn:
+    text: 'Delete'
+    index: 1
+
+# Should return to entries list with empty state
+- assertVisible: 'No entries yet.'
