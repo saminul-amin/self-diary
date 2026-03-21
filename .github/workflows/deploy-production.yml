@@ -1,0 +1,154 @@
+name: Deploy Production
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      image_tag:
+        description: "Image tag to deploy (git SHA from staging)"
+        required: true
+        type: string
+
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+env:
+  AWS_REGION: us-east-1
+  ENVIRONMENT: production
+  ECS_CLUSTER: selfdiary-production
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  promote-images:
+    name: Tag Images for Production
+    runs-on: ubuntu-latest
+    outputs:
+      api_image: ${{ steps.tag.outputs.api_image }}
+      web_image: ${{ steps.tag.outputs.web_image }}
+    steps:
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - id: ecr-login
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - id: resolve-tag
+        run: |
+          if [ -n "${{ inputs.image_tag }}" ]; then
+            echo "tag=${{ inputs.image_tag }}" >> "$GITHUB_OUTPUT"
+          else
+            # For tag-triggered deploys, find the commit SHA
+            echo "tag=${{ github.sha }}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - id: tag
+        env:
+          REGISTRY: ${{ steps.ecr-login.outputs.registry }}
+          SOURCE_TAG: ${{ steps.resolve-tag.outputs.tag }}
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          # Re-tag API image
+          docker pull "$REGISTRY/selfdiary-api:$SOURCE_TAG"
+          docker tag "$REGISTRY/selfdiary-api:$SOURCE_TAG" "$REGISTRY/selfdiary-api:$RELEASE_TAG"
+          docker push "$REGISTRY/selfdiary-api:$RELEASE_TAG"
+
+          # Re-tag Web image
+          docker pull "$REGISTRY/selfdiary-web:$SOURCE_TAG"
+          docker tag "$REGISTRY/selfdiary-web:$SOURCE_TAG" "$REGISTRY/selfdiary-web:$RELEASE_TAG"
+          docker push "$REGISTRY/selfdiary-web:$RELEASE_TAG"
+
+          echo "api_image=$REGISTRY/selfdiary-api:$RELEASE_TAG" >> "$GITHUB_OUTPUT"
+          echo "web_image=$REGISTRY/selfdiary-web:$RELEASE_TAG" >> "$GITHUB_OUTPUT"
+
+  deploy:
+    name: Deploy to Production
+    needs: promote-images
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Update API service
+        run: |
+          TASK_DEF=$(aws ecs describe-services \
+            --cluster ${{ env.ECS_CLUSTER }} \
+            --services api \
+            --query 'services[0].taskDefinition' --output text)
+
+          aws ecs describe-task-definition --task-definition "$TASK_DEF" \
+            --query 'taskDefinition' | \
+          jq --arg IMAGE "${{ needs.promote-images.outputs.api_image }}" \
+            'del(.taskDefinitionArn, .revision, .status, .requiresAttributes, .compatibilities, .registeredAt, .registeredBy) |
+             .containerDefinitions[0].image = $IMAGE' > /tmp/api-task-def.json
+
+          NEW_TASK=$(aws ecs register-task-definition \
+            --cli-input-json file:///tmp/api-task-def.json \
+            --query 'taskDefinition.taskDefinitionArn' --output text)
+
+          aws ecs update-service \
+            --cluster ${{ env.ECS_CLUSTER }} \
+            --service api \
+            --task-definition "$NEW_TASK" \
+            --force-new-deployment
+
+      - name: Update Web service
+        run: |
+          TASK_DEF=$(aws ecs describe-services \
+            --cluster ${{ env.ECS_CLUSTER }} \
+            --services web \
+            --query 'services[0].taskDefinition' --output text)
+
+          aws ecs describe-task-definition --task-definition "$TASK_DEF" \
+            --query 'taskDefinition' | \
+          jq --arg IMAGE "${{ needs.promote-images.outputs.web_image }}" \
+            'del(.taskDefinitionArn, .revision, .status, .requiresAttributes, .compatibilities, .registeredAt, .registeredBy) |
+             .containerDefinitions[0].image = $IMAGE' > /tmp/web-task-def.json
+
+          NEW_TASK=$(aws ecs register-task-definition \
+            --cli-input-json file:///tmp/web-task-def.json \
+            --query 'taskDefinition.taskDefinitionArn' --output text)
+
+          aws ecs update-service \
+            --cluster ${{ env.ECS_CLUSTER }} \
+            --service web \
+            --task-definition "$NEW_TASK" \
+            --force-new-deployment
+
+      - name: Wait for stable deployment
+        run: |
+          echo "Waiting for API service to stabilize..."
+          aws ecs wait services-stable \
+            --cluster ${{ env.ECS_CLUSTER }} \
+            --services api
+
+          echo "Waiting for Web service to stabilize..."
+          aws ecs wait services-stable \
+            --cluster ${{ env.ECS_CLUSTER }} \
+            --services web
+
+          echo "✓ Production deployment complete"
+
+      - name: Run database migrations
+        run: |
+          TASK_ARN=$(aws ecs list-tasks \
+            --cluster ${{ env.ECS_CLUSTER }} \
+            --service-name api \
+            --desired-status RUNNING \
+            --query 'taskArns[0]' --output text)
+
+          aws ecs execute-command \
+            --cluster ${{ env.ECS_CLUSTER }} \
+            --task "$TASK_ARN" \
+            --container api \
+            --interactive \
+            --command "python -m alembic upgrade head"

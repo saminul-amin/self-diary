@@ -47,6 +47,10 @@ class Settings(BaseSettings):
     s3_secret_key: str = "minioadmin"
     s3_bucket_name: str = "selfdiary-attachments"
 
+    # ── Monitoring ──
+    sentry_dsn: str = ""
+    sentry_traces_sample_rate: float = 0.1
+
     # ── CORS ──
     cors_origins: str = "http://localhost:3000"
 

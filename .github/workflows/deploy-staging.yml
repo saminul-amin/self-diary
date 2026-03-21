@@ -1,0 +1,180 @@
+name: Deploy Staging
+
+on:
+  push:
+    branches: [develop]
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-staging
+  cancel-in-progress: false
+
+env:
+  AWS_REGION: us-east-1
+  ENVIRONMENT: staging
+  ECS_CLUSTER: selfdiary-staging
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  ci:
+    uses: ./.github/workflows/ci.yml
+
+  build-api:
+    name: Build & Push API Image
+    needs: ci
+    runs-on: ubuntu-latest
+    outputs:
+      image: ${{ steps.meta.outputs.image }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - id: ecr-login
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - id: meta
+        run: |
+          IMAGE="${{ steps.ecr-login.outputs.registry }}/selfdiary-api:${{ github.sha }}"
+          echo "image=$IMAGE" >> "$GITHUB_OUTPUT"
+
+      - uses: docker/setup-buildx-action@v3
+
+      - uses: docker/build-push-action@v6
+        with:
+          context: backend
+          push: true
+          tags: ${{ steps.meta.outputs.image }}
+          cache-from: type=gha,scope=api
+          cache-to: type=gha,mode=max,scope=api
+
+  build-web:
+    name: Build & Push Web Image
+    needs: ci
+    runs-on: ubuntu-latest
+    outputs:
+      image: ${{ steps.meta.outputs.image }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - id: ecr-login
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - id: meta
+        run: |
+          IMAGE="${{ steps.ecr-login.outputs.registry }}/selfdiary-web:${{ github.sha }}"
+          echo "image=$IMAGE" >> "$GITHUB_OUTPUT"
+
+      - uses: docker/setup-buildx-action@v3
+
+      - uses: docker/build-push-action@v6
+        with:
+          context: web
+          push: true
+          tags: ${{ steps.meta.outputs.image }}
+          build-args: |
+            NEXT_PUBLIC_API_URL=${{ secrets.STAGING_API_URL }}
+          cache-from: type=gha,scope=web
+          cache-to: type=gha,mode=max,scope=web
+
+  deploy:
+    name: Deploy to Staging
+    needs: [build-api, build-web]
+    runs-on: ubuntu-latest
+    environment: staging
+    steps:
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Update API service
+        run: |
+          # Get current task definition
+          TASK_DEF=$(aws ecs describe-services \
+            --cluster ${{ env.ECS_CLUSTER }} \
+            --services api \
+            --query 'services[0].taskDefinition' --output text)
+
+          # Get task definition JSON and update image
+          aws ecs describe-task-definition --task-definition "$TASK_DEF" \
+            --query 'taskDefinition' | \
+          jq --arg IMAGE "${{ needs.build-api.outputs.image }}" \
+            'del(.taskDefinitionArn, .revision, .status, .requiresAttributes, .compatibilities, .registeredAt, .registeredBy) |
+             .containerDefinitions[0].image = $IMAGE' > /tmp/api-task-def.json
+
+          # Register new task definition
+          NEW_TASK=$(aws ecs register-task-definition \
+            --cli-input-json file:///tmp/api-task-def.json \
+            --query 'taskDefinition.taskDefinitionArn' --output text)
+
+          # Update service
+          aws ecs update-service \
+            --cluster ${{ env.ECS_CLUSTER }} \
+            --service api \
+            --task-definition "$NEW_TASK" \
+            --force-new-deployment
+
+      - name: Update Web service
+        run: |
+          TASK_DEF=$(aws ecs describe-services \
+            --cluster ${{ env.ECS_CLUSTER }} \
+            --services web \
+            --query 'services[0].taskDefinition' --output text)
+
+          aws ecs describe-task-definition --task-definition "$TASK_DEF" \
+            --query 'taskDefinition' | \
+          jq --arg IMAGE "${{ needs.build-web.outputs.image }}" \
+            'del(.taskDefinitionArn, .revision, .status, .requiresAttributes, .compatibilities, .registeredAt, .registeredBy) |
+             .containerDefinitions[0].image = $IMAGE' > /tmp/web-task-def.json
+
+          NEW_TASK=$(aws ecs register-task-definition \
+            --cli-input-json file:///tmp/web-task-def.json \
+            --query 'taskDefinition.taskDefinitionArn' --output text)
+
+          aws ecs update-service \
+            --cluster ${{ env.ECS_CLUSTER }} \
+            --service web \
+            --task-definition "$NEW_TASK" \
+            --force-new-deployment
+
+      - name: Wait for stable deployment
+        run: |
+          echo "Waiting for API service to stabilize..."
+          aws ecs wait services-stable \
+            --cluster ${{ env.ECS_CLUSTER }} \
+            --services api
+
+          echo "Waiting for Web service to stabilize..."
+          aws ecs wait services-stable \
+            --cluster ${{ env.ECS_CLUSTER }} \
+            --services web
+
+          echo "✓ Staging deployment complete"
+
+      - name: Run database migrations
+        run: |
+          # Run migrations via ECS exec
+          TASK_ARN=$(aws ecs list-tasks \
+            --cluster ${{ env.ECS_CLUSTER }} \
+            --service-name api \
+            --desired-status RUNNING \
+            --query 'taskArns[0]' --output text)
+
+          aws ecs execute-command \
+            --cluster ${{ env.ECS_CLUSTER }} \
+            --task "$TASK_ARN" \
+            --container api \
+            --interactive \
+            --command "python -m alembic upgrade head"

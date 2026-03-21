@@ -18,6 +18,27 @@ from app.core.logging import setup_logging
 from app.core.middleware import register_middleware
 from app.db.database import engine
 
+
+def _init_sentry() -> None:
+    """Initialise Sentry SDK when a DSN is configured."""
+    if not settings.sentry_dsn:
+        return
+    try:
+        import sentry_sdk
+        from sentry_sdk.integrations.fastapi import FastApiIntegration
+        from sentry_sdk.integrations.sqlalchemy import SqlalchemyIntegration
+
+        sentry_sdk.init(
+            dsn=settings.sentry_dsn,
+            environment=settings.environment,
+            release=settings.app_version,
+            traces_sample_rate=settings.sentry_traces_sample_rate,
+            integrations=[FastApiIntegration(), SqlalchemyIntegration()],
+        )
+    except ImportError:
+        logger.warning("sentry-sdk not installed — skipping Sentry init")
+
+
 logger = logging.getLogger(__name__)
 
 
@@ -25,6 +46,7 @@ logger = logging.getLogger(__name__)
 async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     """Application lifespan: startup and shutdown events."""
     setup_logging()
+    _init_sentry()
     logger.info(
         "Starting %s v%s [%s]", settings.app_name, settings.app_version, settings.environment
     )
