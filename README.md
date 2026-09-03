@@ -20,23 +20,26 @@ SelfDiary lets users maintain a private digital diary that works seamlessly acro
 
 ## Architecture Summary
 
+```mermaid
+flowchart TB
+    WEB["Next.js, App Router<br/>TypeScript, Tailwind, TanStack Query"]
+    MOB["React Native / Expo<br/>Expo Router, TanStack Query"]
+    LOCAL[("AsyncStorage<br/>offline write queue")]
+
+    API["FastAPI — Python 3.12<br/>SQLAlchemy async, Pydantic v2<br/>JWT access + refresh, bcrypt"]
+    PG[("PostgreSQL 16<br/>Alembic migrations")]
+    OBJ[("S3-compatible object storage<br/>Minio in local dev<br/>media attachments")]
+
+    MOB <--> LOCAL
+    WEB -- "HTTPS / REST" --> API
+    MOB -- "HTTPS / REST<br/>syncs on reconnect,<br/>conflicts resolved automatically" --> API
+    API --> PG
+    API --> OBJ
 ```
-┌─────────────┐     ┌──────────────┐
-│  Next.js    │     │ React Native │
-│  Web Client │     │ Mobile Client│
-└──────┬──────┘     └──────┬───────┘
-       │     HTTPS / REST    │
-       └──────────┬──────────┘
-                  │
-        ┌─────────▼─────────┐
-        │   FastAPI Backend  │
-        │   (Python, JWT)    │
-        └─────────┬─────────┘
-                  │
-        ┌─────────▼─────────┐
-        │   PostgreSQL       │
-        └────────────────────┘
-```
+
+Two independent clients consume one versioned REST API. The mobile app is the offline-first
+one: entries are written to AsyncStorage immediately and replayed when connectivity returns,
+so a lost signal never costs an entry.
 
 Two independent frontend clients consume a single versioned REST API. The backend handles authentication, business logic, and data persistence. See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the full design and [docs/IMPLEMENTATION_PLAN.md](docs/IMPLEMENTATION_PLAN.md) for the development roadmap.
 
